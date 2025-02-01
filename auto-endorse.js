@@ -9,9 +9,7 @@
 // @grant        none
 // ==/UserScript==
 
-(function () {
-  "use strict";
-
+(() => {
   let interval = null;
   let skills = null;
 
@@ -42,7 +40,7 @@
           run();
         }, 500);
       } else {
-        let skills = getSkillsToEndorse();
+        const skills = getSkillsToEndorse();
         if (!skills.length) {
           stop();
         } else {
@@ -53,7 +51,7 @@
   };
 
   // Listen for keydown event
-  document.addEventListener("keydown", function (e) {
+  document.addEventListener("keydown", (e) => {
     // Check if Ctrl+Alt+A is pressed
     if (e.ctrlKey && e.altKey && e.key === "a") {
       run(); // Run the script only when Ctrl+Alt+A is pressed
