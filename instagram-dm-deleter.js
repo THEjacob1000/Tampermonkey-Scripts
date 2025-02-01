@@ -14,14 +14,18 @@
 
   const getChatElements = () => {
     const chatElements = document.querySelectorAll(
-      ".x13dflua.x19991ni"
+      ".x13dflua.x19991ni > *"
     );
     console.log(`Found ${chatElements.length} chat elements`);
-    return Array.from(chatElements).reverse();
+    // Convert to array and reverse in one step
+    const reversedElements = [...chatElements].reverse();
+    return reversedElements;
   };
 
   async function deleteOpenChat() {
     try {
+      console.log("Starting deletion process for open chat");
+
       const infoButton = document.querySelector(
         'div[aria-expanded="false"]'
       );
@@ -55,7 +59,7 @@
 
       confirmButton.click();
       console.log("Clicked confirm button, waiting...");
-      await sleep(WAIT_TIME);
+      await sleep(2000); // Increased wait time after deletion
 
       return true;
     } catch (error) {
@@ -108,16 +112,9 @@
   };
 
   async function openChat(chat) {
-    const clickableElement = chat.querySelector(
-      'div[role="button"][tabindex="0"]'
-    );
-    if (!clickableElement) {
-      throw new Error("Could not find clickable element");
-    }
-
-    clickableElement.click();
+    chat.click();
     console.log("Clicked chat, waiting for load...");
-    await sleep(3000);
+    await sleep(1000);
   }
 
   async function deleteOldChats() {
@@ -137,12 +134,17 @@
     console.log("=== Starting deletion process for all chats ===");
 
     const chatElements = getChatElements();
+
     if (!chatElements.length) {
       console.log("No chat elements found on page");
       return;
     }
 
-    const deletedCount = 0;
+    console.log(
+      `Found ${chatElements.length} chats to potentially delete`
+    );
+
+    let deletedCount = 0;
     for (const chat of chatElements) {
       console.log(
         `Attempting to delete chat ${deletedCount + 1} of ${
@@ -150,21 +152,44 @@
         }`
       );
 
-      // Find and click the chat
-      await openChat(chat);
+      try {
+        await openChat(chat);
+        console.log("Chat opened, waiting for load...");
+        await sleep(2000);
 
-      if (confirm("Do you want to delete this chat?")) {
-        console.log("User confirmed deletion, attempting to delete");
-        const success = await deleteOpenChat();
-        if (!success) {
-          console.error("Failed to delete chat");
+        if (confirm("Do you want to delete this chat?")) {
+          console.log(
+            "User confirmed deletion, attempting to delete"
+          );
+          const success = await deleteOpenChat();
+          if (success) {
+            deletedCount++;
+            console.log(
+              `Successfully deleted chat ${deletedCount} of ${chatElements.length}`
+            );
+          } else {
+            console.error("Failed to delete chat");
+          }
+        } else {
+          deletedCount++;
+          console.log("Chat deletion cancelled by user");
+          await sleep(2000);
         }
-      } else {
-        console.log("Chat deletion cancelled by user");
+
+        // Navigate back to the inbox
+        const backButton = document.querySelector(
+          'div[role="button"][aria-label="Back"]'
+        );
+        if (backButton) {
+          backButton.click();
+          await sleep(2000);
+        }
+      } catch (error) {
+        console.error("Error processing chat:", error);
       }
 
       // Wait a bit before moving to the next chat
-      await sleep(1000);
+      await sleep(3000);
     }
 
     console.log("=== Deletion process completed ===");
