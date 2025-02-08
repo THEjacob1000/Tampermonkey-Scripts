@@ -10,6 +10,9 @@
 // ==/UserScript==
 
 (() => {
+  let isScriptRunning = false;
+  let cancelRequested = false;
+
   const sleep = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -24,6 +27,7 @@
   };
 
   async function deleteOpenChat() {
+    if (cancelRequested) return false;
     try {
       console.log("Starting deletion process for open chat");
 
@@ -37,6 +41,8 @@
       infoButton.click();
       console.log("Clicked info button, waiting...");
       await sleep(1000);
+
+      if (cancelRequested) return false;
 
       // Find and click delete button
       const leaveButton = Array.from(
@@ -54,6 +60,8 @@
       leaveButton.click();
       console.log("Clicked delete button, waiting...");
       await sleep(1000);
+
+      if (cancelRequested) return false;
 
       // Find and click confirm button
       const confirmButton = document.querySelector(
@@ -90,12 +98,6 @@
 
       const isOutdated = chatDate < sixMonthsAgo;
 
-      console.log("Checking chat:", {
-        chatDate: chatDate.toISOString(),
-        sixMonthsAgo: sixMonthsAgo.toISOString(),
-        isOutdated: isOutdated,
-      });
-
       return isOutdated;
     } catch (error) {
       console.error("Error in isChatOutdated:", error);
@@ -104,6 +106,7 @@
   };
 
   async function openChat(chat) {
+    if (cancelRequested) return;
     chat.click();
     console.log("Clicked chat, waiting for load...");
     await sleep(1000);
@@ -111,24 +114,65 @@
 
   async function deleteOldChats() {
     console.log("=== Starting deletion process for old chats ===");
-    const chatElements = getChatElements();
-    if (!chatElements.length) {
-      console.log("No chat elements found on page");
-      return;
+    isScriptRunning = true;
+    cancelRequested = false;
+    addCancelButton();
+
+    let hasMoreChatsToDelete = true;
+
+    while (hasMoreChatsToDelete && !cancelRequested) {
+      const chatElements = getChatElements();
+      if (!chatElements.length) {
+        console.log("No chat elements found on page");
+        hasMoreChatsToDelete = false;
+        break;
+      }
+
+      const outdatedChats = chatElements.filter((c) =>
+        isChatOutdated(c)
+      );
+      if (outdatedChats.length === 0) {
+        console.log("No more outdated chats found");
+        hasMoreChatsToDelete = false;
+        break;
+      }
+
+      console.log(
+        `Found ${outdatedChats.length} outdated chats to delete`
+      );
+
+      for (const chat of outdatedChats) {
+        if (cancelRequested) break;
+        await openChat(chat);
+        await deleteOpenChat();
+        await sleep(2000); // Wait for deletion to complete and page to update
+      }
+
+      // Wait for the page to potentially load more chats
+      if (!cancelRequested) await sleep(5000);
     }
-    chatElements
-      .filter((c) => isChatOutdated(c))
-      .map((c) => openChat(c).then(() => deleteOpenChat()));
-    console.log("=== Deletion process completed ===");
+
+    console.log(
+      cancelRequested
+        ? "=== Deletion process cancelled ==="
+        : "=== Deletion process completed ==="
+    );
+    isScriptRunning = false;
+    removeCancelButton();
   }
 
   async function deleteAllChatsWithConfirmation() {
     console.log("=== Starting deletion process for all chats ===");
+    isScriptRunning = true;
+    cancelRequested = false;
+    addCancelButton();
 
     const chatElements = getChatElements();
 
     if (!chatElements.length) {
       console.log("No chat elements found on page");
+      isScriptRunning = false;
+      removeCancelButton();
       return;
     }
 
@@ -138,6 +182,7 @@
 
     let deletedCount = 0;
     for (const chat of chatElements) {
+      if (cancelRequested) break;
       console.log(
         `Attempting to delete chat ${deletedCount + 1} of ${
           chatElements.length
@@ -148,6 +193,8 @@
         await openChat(chat);
         console.log("Chat opened, waiting for load...");
         await sleep(2000);
+
+        if (cancelRequested) break;
 
         if (confirm("Do you want to delete this chat?")) {
           console.log(
@@ -168,6 +215,8 @@
           await sleep(2000);
         }
 
+        if (cancelRequested) break;
+
         // Navigate back to the inbox
         const backButton = document.querySelector(
           'div[role="button"][aria-label="Back"]'
@@ -181,11 +230,17 @@
       }
 
       // Wait a bit before moving to the next chat
-      await sleep(3000);
+      if (!cancelRequested) await sleep(3000);
     }
 
-    console.log("=== Deletion process completed ===");
+    console.log(
+      cancelRequested
+        ? "=== Deletion process cancelled ==="
+        : "=== Deletion process completed ==="
+    );
     console.log(`Successfully deleted ${deletedCount} chats`);
+    isScriptRunning = false;
+    removeCancelButton();
   }
 
   const addButtons = () => {
@@ -252,11 +307,37 @@
     console.log("Delete buttons added to page");
   };
 
-  addButtons();
+  const addCancelButton = () => {
+    const cancelButton = document.createElement("button");
+    cancelButton.id = "cancelScriptButton";
+    cancelButton.textContent = "Cancel Deletion";
+    cancelButton.style.cssText = `
+            position: fixed;
+            top: 15px;
+            right: 520px;
+            z-index: 9999;
+            padding: 10px;
+            background: #1DA1F2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        `;
+    cancelButton.onclick = () => {
+      console.log("Cancel button clicked");
+      cancelRequested = true;
+    };
+    document.body.appendChild(cancelButton);
+  };
 
-  async function checkChatElements() {
-    await sleep(5000);
-    console.log("Chat Elements: ", getChatElements());
-  }
-  checkChatElements();
+  const removeCancelButton = () => {
+    const cancelButton = document.getElementById(
+      "cancelScriptButton"
+    );
+    if (cancelButton) {
+      cancelButton.remove();
+    }
+  };
+
+  addButtons();
 })();
