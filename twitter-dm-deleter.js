@@ -46,13 +46,11 @@
 
       // Find and click delete button
       const leaveButton = Array.from(
-        document.querySelectorAll('button[role="button"]')
-      ).find((button) => {
-        const spanText = button.querySelector(
-          'span:not([class*="r-"])'
-        );
-        return spanText?.textContent.trim() === "Leave conversation";
-      });
+        document.querySelectorAll(".css-175oi2r.r-kemksi > *")
+      ).filter(
+        (element) => element.tagName.toLowerCase() === "button"
+      )[2];
+
       if (!leaveButton) {
         throw new Error("Could not find delete button");
       }
